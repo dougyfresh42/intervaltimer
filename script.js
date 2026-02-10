@@ -243,11 +243,11 @@ function advanceRep() {
 }
 
 function tick() {
-  if (timerState.secondsLeft <= 3 && timerState.secondsLeft > 0) {
+  if (timerState.secondsLeft <= 3 && timerState.secondsLeft > 1) {
     playCountdownBeep();
   }
   
-  if (timerState.secondsLeft <= 0) {
+  if (timerState.secondsLeft <= 1) {
     nextPhase();
   } else {
     timerState.secondsLeft--;
