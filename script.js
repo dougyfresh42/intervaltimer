@@ -5,6 +5,7 @@ const config = {
 
 let timerState = {
   running: false,
+  paused: false,
   currentSetIndex: 0,
   currentRep: 1,
   phase: "ready", // ready, work, rest
@@ -19,6 +20,7 @@ const completeScreen = document.getElementById("complete-screen");
 const setsList = document.getElementById("sets-list");
 const addSetBtn = document.getElementById("add-set-btn");
 const startBtn = document.getElementById("start-btn");
+const pauseBtn = document.getElementById("pause-btn");
 const stopBtn = document.getElementById("stop-btn");
 const restartBtn = document.getElementById("restart-btn");
 
@@ -249,6 +251,8 @@ function advanceRep() {
 }
 
 function tick() {
+  if (timerState.paused) return;
+  
   if (timerState.secondsLeft <= 3 && timerState.secondsLeft > 1) {
     playCountdownBeep();
   }
@@ -268,6 +272,7 @@ function startTimer() {
   
   timerState = {
     running: true,
+    paused: false,
     currentSetIndex: 0,
     currentRep: 1,
     phase: "ready",
@@ -283,9 +288,26 @@ function startTimer() {
 
 function stopTimer() {
   timerState.running = false;
+  timerState.paused = false;
   if (timerState.intervalId) {
     clearInterval(timerState.intervalId);
     timerState.intervalId = null;
+  }
+}
+
+function pauseTimer() {
+  if (!timerState.running) return;
+  
+  if (timerState.paused) {
+    // Resume
+    timerState.paused = false;
+    pauseBtn.textContent = "Pause";
+    pauseBtn.className = "btn btn-pause";
+  } else {
+    // Pause
+    timerState.paused = true;
+    pauseBtn.textContent = "Resume";
+    pauseBtn.className = "btn btn-primary";
   }
 }
 
@@ -297,6 +319,7 @@ function resetToSetup() {
 // Event Listeners
 addSetBtn.addEventListener("click", addSet);
 startBtn.addEventListener("click", startTimer);
+pauseBtn.addEventListener("click", pauseTimer);
 stopBtn.addEventListener("click", resetToSetup);
 restartBtn.addEventListener("click", resetToSetup);
 
