@@ -174,7 +174,15 @@ function showScreen(screen) {
 
 function updateTimerDisplay() {
   const currentSet = config.sets[timerState.currentSetIndex];
-  setNameEl.textContent = currentSet.name;
+  
+  if (timerState.phase === "rest" && timerState.currentRep === currentSet.reps && timerState.currentSetIndex < config.sets.length - 1) {
+    const nextSet = config.sets[timerState.currentSetIndex + 1];
+    setNameEl.textContent = `Upcoming: ${nextSet.name}`;
+  } else if (timerState.phase === "rest" && timerState.currentRep === currentSet.reps && timerState.currentSetIndex === config.sets.length - 1) {
+    setNameEl.textContent = "Last Set";
+  } else {
+    setNameEl.textContent = currentSet.name;
+  }
   
   phaseEl.textContent = timerState.phase === "ready" ? "GET READY" : timerState.phase.toUpperCase();
   phaseEl.className = "phase " + timerState.phase;
@@ -193,11 +201,15 @@ function nextPhase() {
   } else if (timerState.phase === "work") {
     playRepComplete();
     
-    if (currentSet.restTime > 0) {
+    // Check if this is the last rep of the last set
+    const isLastRepOfLastSet = timerState.currentRep === currentSet.reps && 
+                               timerState.currentSetIndex === config.sets.length - 1;
+    
+    if (currentSet.restTime > 0 && !isLastRepOfLastSet) {
       timerState.phase = "rest";
       timerState.secondsLeft = currentSet.restTime;
     } else {
-      // No rest time, go directly to next rep or set
+      // No rest time or last rep of last set, go directly to next rep or set
       advanceRep();
     }
   } else if (timerState.phase === "rest") {
@@ -219,8 +231,8 @@ function advanceRep() {
     if (timerState.currentSetIndex < config.sets.length - 1) {
       timerState.currentSetIndex++;
       timerState.currentRep = 1;
-      timerState.phase = "ready";
-      timerState.secondsLeft = 5;
+      timerState.phase = "work";
+      timerState.secondsLeft = config.sets[timerState.currentSetIndex].workTime;
     } else {
       // All done!
       stopTimer();
