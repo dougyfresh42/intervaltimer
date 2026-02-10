@@ -199,10 +199,17 @@ function nextPhase() {
     timerState.phase = "work";
     timerState.secondsLeft = currentSet.workTime;
   } else if (timerState.phase === "work") {
-    playRepComplete();
+    // Check if this is the last rep of the current set
+    const isLastRepOfSet = timerState.currentRep === currentSet.reps;
+    
+    if (isLastRepOfSet) {
+      playSetComplete();
+    } else {
+      playRepComplete();
+    }
     
     // Check if this is the last rep of the last set
-    const isLastRepOfLastSet = timerState.currentRep === currentSet.reps && 
+    const isLastRepOfLastSet = isLastRepOfSet && 
                                timerState.currentSetIndex === config.sets.length - 1;
     
     if (currentSet.restTime > 0 && !isLastRepOfLastSet) {
@@ -225,8 +232,7 @@ function advanceRep() {
     timerState.phase = "work";
     timerState.secondsLeft = currentSet.workTime;
   } else {
-    // Set complete
-    playSetComplete();
+    // Set complete - advance to next set or finish
     
     if (timerState.currentSetIndex < config.sets.length - 1) {
       timerState.currentSetIndex++;
