@@ -13,6 +13,8 @@ let timerState = {
   intervalId: null
 };
 
+let wakeLock = null;
+
 // DOM Elements
 const setupScreen = document.getElementById("setup-screen");
 const timerScreen = document.getElementById("timer-screen");
@@ -40,19 +42,19 @@ function initAudio() {
 
 function playBeep(frequency, duration) {
   if (!audioContext) return;
-  
+
   const oscillator = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
-  
+
   oscillator.connect(gainNode);
   gainNode.connect(audioContext.destination);
-  
+
   oscillator.frequency.value = frequency;
   oscillator.type = "sine";
-  
+
   gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
   gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-  
+
   oscillator.start(audioContext.currentTime);
   oscillator.stop(audioContext.currentTime + duration);
 }
@@ -68,6 +70,29 @@ function playRepComplete() {
 function playSetComplete() {
   playBeep(400, 0.15);
   setTimeout(() => playBeep(400, 0.15), 200);
+}
+
+// Wake Lock
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+  } catch (err) {
+    console.error('Wake Lock error:', err);
+  }
+}
+
+async function releaseWakeLock() {
+  if (wakeLock) {
+    await wakeLock.release();
+    wakeLock = null;
+  }
+}
+
+async function handleVisibilityChange() {
+  if (document.visibilityState === 'visible' && timerState.running && !timerState.paused) {
+    await requestWakeLock();
+  }
 }
 
 // URL State Management
@@ -98,9 +123,13 @@ function createSetCard(set, index) {
   const card = document.createElement("div");
   card.className = "set-card";
   card.dataset.index = index;
-  
+
   card.innerHTML = `
     <div class="set-header">
+      <div class="set-move-buttons">
+        <button type="button" class="btn btn-small move-btn move-up-btn" ${index === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="btn btn-small move-btn move-down-btn" ${index === config.sets.length - 1 ? 'disabled' : ''}>↓</button>
+      </div>
       <input type="text" class="set-name-input" value="${set.name}" placeholder="Set name">
       ${config.sets.length > 1 ? '<button type="button" class="btn btn-danger btn-small remove-set-btn">✕</button>' : ''}
     </div>
@@ -119,24 +148,24 @@ function createSetCard(set, index) {
       </div>
     </div>
   `;
-  
+
   // Event listeners
   card.querySelector(".set-name-input").addEventListener("input", (e) => {
     config.sets[index].name = e.target.value;
   });
-  
+
   card.querySelector(".work-input").addEventListener("input", (e) => {
     config.sets[index].workTime = parseInt(e.target.value) || 10;
   });
-  
+
   card.querySelector(".rest-input").addEventListener("input", (e) => {
     config.sets[index].restTime = parseInt(e.target.value) || 0;
   });
-  
+
   card.querySelector(".reps-input").addEventListener("input", (e) => {
     config.sets[index].reps = parseInt(e.target.value) || 1;
   });
-  
+
   const removeBtn = card.querySelector(".remove-set-btn");
   if (removeBtn) {
     removeBtn.addEventListener("click", () => {
@@ -144,7 +173,31 @@ function createSetCard(set, index) {
       renderSets();
     });
   }
-  
+
+  const moveUpBtn = card.querySelector(".move-up-btn");
+  if (moveUpBtn) {
+    moveUpBtn.addEventListener("click", () => {
+      if (index > 0) {
+        const temp = config.sets[index];
+        config.sets[index] = config.sets[index - 1];
+        config.sets[index - 1] = temp;
+        renderSets();
+      }
+    });
+  }
+
+  const moveDownBtn = card.querySelector(".move-down-btn");
+  if (moveDownBtn) {
+    moveDownBtn.addEventListener("click", () => {
+      if (index < config.sets.length - 1) {
+        const temp = config.sets[index];
+        config.sets[index] = config.sets[index + 1];
+        config.sets[index + 1] = temp;
+        renderSets();
+      }
+    });
+  }
+
   return card;
 }
 
@@ -176,7 +229,7 @@ function showScreen(screen) {
 
 function updateTimerDisplay() {
   const currentSet = config.sets[timerState.currentSetIndex];
-  
+
   if (timerState.phase === "rest" && timerState.currentRep === currentSet.reps && timerState.currentSetIndex < config.sets.length - 1) {
     const nextSet = config.sets[timerState.currentSetIndex + 1];
     setNameEl.textContent = `Upcoming: ${nextSet.name}`;
@@ -185,35 +238,35 @@ function updateTimerDisplay() {
   } else {
     setNameEl.textContent = currentSet.name;
   }
-  
+
   phaseEl.textContent = timerState.phase === "ready" ? "GET READY" : timerState.phase.toUpperCase();
   phaseEl.className = "phase " + timerState.phase;
-  
+
   countdownEl.textContent = timerState.secondsLeft;
-  
+
   progressEl.textContent = `Rep ${timerState.currentRep}/${currentSet.reps} - Set ${timerState.currentSetIndex + 1}/${config.sets.length}`;
 }
 
 function nextPhase() {
   const currentSet = config.sets[timerState.currentSetIndex];
-  
+
   if (timerState.phase === "ready") {
     timerState.phase = "work";
     timerState.secondsLeft = currentSet.workTime;
   } else if (timerState.phase === "work") {
     // Check if this is the last rep of the current set
     const isLastRepOfSet = timerState.currentRep === currentSet.reps;
-    
+
     if (isLastRepOfSet) {
       playSetComplete();
     } else {
       playRepComplete();
     }
-    
+
     // Check if this is the last rep of the last set
-    const isLastRepOfLastSet = isLastRepOfSet && 
-                               timerState.currentSetIndex === config.sets.length - 1;
-    
+    const isLastRepOfLastSet = isLastRepOfSet &&
+      timerState.currentSetIndex === config.sets.length - 1;
+
     if (currentSet.restTime > 0 && !isLastRepOfLastSet) {
       timerState.phase = "rest";
       timerState.secondsLeft = currentSet.restTime;
@@ -228,14 +281,14 @@ function nextPhase() {
 
 function advanceRep() {
   const currentSet = config.sets[timerState.currentSetIndex];
-  
+
   if (timerState.currentRep < currentSet.reps) {
     timerState.currentRep++;
     timerState.phase = "work";
     timerState.secondsLeft = currentSet.workTime;
   } else {
     // Set complete - advance to next set or finish
-    
+
     if (timerState.currentSetIndex < config.sets.length - 1) {
       timerState.currentSetIndex++;
       timerState.currentRep = 1;
@@ -252,24 +305,25 @@ function advanceRep() {
 
 function tick() {
   if (timerState.paused) return;
-  
-  if (timerState.secondsLeft <= 3 && timerState.secondsLeft > 1) {
+
+  if (timerState.secondsLeft <= 4 && timerState.secondsLeft > 1) {
     playCountdownBeep();
   }
-  
+
   if (timerState.secondsLeft <= 1) {
     nextPhase();
   } else {
     timerState.secondsLeft--;
   }
-  
+
   updateTimerDisplay();
 }
 
 function startTimer() {
   initAudio();
   saveToUrl();
-  
+  requestWakeLock();
+
   timerState = {
     running: true,
     paused: false,
@@ -279,10 +333,10 @@ function startTimer() {
     secondsLeft: 5,
     intervalId: null
   };
-  
+
   showScreen(timerScreen);
   updateTimerDisplay();
-  
+
   timerState.intervalId = setInterval(tick, 1000);
 }
 
@@ -293,11 +347,12 @@ function stopTimer() {
     clearInterval(timerState.intervalId);
     timerState.intervalId = null;
   }
+  releaseWakeLock();
 }
 
 function pauseTimer() {
   if (!timerState.running) return;
-  
+
   if (timerState.paused) {
     // Resume
     timerState.paused = false;
@@ -322,6 +377,7 @@ startBtn.addEventListener("click", startTimer);
 pauseBtn.addEventListener("click", pauseTimer);
 stopBtn.addEventListener("click", resetToSetup);
 restartBtn.addEventListener("click", resetToSetup);
+document.addEventListener("visibilitychange", handleVisibilityChange);
 
 // Initialize
 loadFromUrl();

@@ -98,6 +98,25 @@ h2 {
   font-size: 0.9rem;
 }
 
+.set-move-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.move-btn {
+  min-height: 24px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  background: #444;
+  color: #ccc;
+}
+
+.move-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 /* Sets Section */
 .sets-section {
   width: 100%;
