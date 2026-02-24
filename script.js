@@ -96,9 +96,33 @@ async function handleVisibilityChange() {
 }
 
 // URL State Management
+function minifyConfig(config) {
+  return {
+    s: config.sets.map(set => ({
+      n: set.name,
+      w: set.workTime,
+      rt: set.restTime,
+      rp: set.reps
+    }))
+  };
+}
+
+function expandConfig(minified) {
+  return {
+    sets: minified.s.map(set => ({
+      name: set.n,
+      workTime: set.w,
+      restTime: set.rt,
+      reps: set.rp
+    }))
+  };
+}
+
 function saveToUrl() {
-  const encoded = btoa(JSON.stringify(config));
+  const encoded = btoa(JSON.stringify(minifyConfig(config)));
+  console.log(encoded)
   const url = new URL(window.location);
+  console.log(url)
   url.searchParams.set("c", encoded);
   window.history.replaceState({}, "", url);
 }
@@ -109,7 +133,9 @@ function loadFromUrl() {
   if (encoded) {
     try {
       const decoded = JSON.parse(atob(encoded));
-      if (decoded.sets && Array.isArray(decoded.sets)) {
+      if (decoded.s && Array.isArray(decoded.s)) {
+        config.sets = expandConfig(decoded).sets;
+      } else if (decoded.sets && Array.isArray(decoded.sets)) {
         config.sets = decoded.sets;
       }
     } catch (e) {
